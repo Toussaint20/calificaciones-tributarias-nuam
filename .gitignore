@@ -1,0 +1,21 @@
+# Archivo de credenciales - NUNCA SUBIR
+.env
+
+# Entorno virtual
+venv/
+env/
+
+# Base de datos local (si usaras sqlite)
+*.sqlite3
+
+# Archivos compilados de Python
+__pycache__/
+*.pyc
+
+# Carpeta de archivos estáticos/media locales
+/static/
+/media/
+
+# Archivos de IDEs
+.vscode/
+.idea/

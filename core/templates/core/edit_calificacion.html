@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Editar Calificación</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
+        .container { max-width: 800px; margin: auto; background-color: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+        .btn { padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 16px; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .header-info { background-color: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="header-info">
+            <h2>Detalle Calificación</h2>
+            <p><strong>Instrumento:</strong> {{ calificacion.evento.emisor.nemonico }}</p>
+            <p><strong>Fecha de Pago:</strong> {{ calificacion.evento.fecha_pago }}</p>
+            <p><strong>Periodo:</strong> {{ calificacion.evento.ejercicio_comercial }}</p>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="monto_unitario_pesos">Monto por Acción ($)</label>
+                <input type="number" step="0.000001" name="monto_unitario_pesos" id="monto_unitario_pesos" value="{{ calificacion.monto_unitario_pesos|stringformat:".6f" }}">
+            </div>
+            <div class="form-group">
+                <label for="estado">Estado</label>
+                <select name="estado" id="estado">
+                    {% for value, name in estado_choices %}
+                        <option value="{{ value }}" {% if calificacion.estado == value %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <hr style="margin: 20px 0;">
+        <h3>Factores Tributarios</h3>
+        <div class="form-grid">
+            
+            {% for factor in factores_para_template %}
+                <div class="form-group">
+                    <label for="factor_{{ factor.concepto.pk }}">{{ factor.concepto.descripcion }}</label>
+                    
+                    <input type="number" step="0.00000001" name="factor_{{ factor.concepto.pk }}" id="factor_{{ factor.concepto.pk }}" value="{{ factor.valor|stringformat:".8f" }}">
+                </div>
+            {% endfor %}
+            </div>
+
+        
+        <br>
+        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        <a href="{% url 'core:mantenedor' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>
+
+</body>
+</html>
