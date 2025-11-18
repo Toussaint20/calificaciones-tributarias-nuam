@@ -3,6 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <title>Editar Calificación</title>
+    <form method="post">
+    {% csrf_token %}
+
+    <div class="header-info" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h2>Detalle Calificación</h2>
+            <p><strong>Instrumento:</strong> {{ calificacion.evento.emisor.nemonico }}</p>
+            <p><strong>Fecha de Pago:</strong> {{ calificacion.evento.fecha_pago }}</p>
+            <p><strong>Periodo:</strong> {{ calificacion.evento.ejercicio_comercial }}</p>
+        </div>
+        <div>
+            <a href="{% url 'core:history_calificacion' calificacion.pk %}" class="btn-secondary">Ver Historial</a>
+        </div>
+    </div>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         .container { max-width: 800px; margin: auto; background-color: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }

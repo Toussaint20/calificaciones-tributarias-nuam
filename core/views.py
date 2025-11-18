@@ -1,14 +1,45 @@
-# core/views.py (Versión robusta)
+# core/views.py
 
 import pandas as pd
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
 from .models import Emisor, EventoCorporativo, CalificacionTributaria, ConceptoFactor, DetalleFactor
-from django.shortcuts import get_object_or_404
+from .decorators import group_required
 
+# Vista Principal: Mantenedor
 @login_required
+def mantenedor_view(request):
+    calificaciones = CalificacionTributaria.objects.select_related('evento__emisor').all()
+
+    # Lógica de filtros
+    filtro_mercado = request.GET.get('mercado', '')
+    filtro_instrumento = request.GET.get('instrumento', '')
+    filtro_periodo = request.GET.get('periodo', '')
+
+    if filtro_mercado:
+        calificaciones = calificaciones.filter(evento__mercado=filtro_mercado)
+    if filtro_instrumento:
+        calificaciones = calificaciones.filter(evento__emisor__nemonico__icontains=filtro_instrumento)
+    if filtro_periodo:
+        calificaciones = calificaciones.filter(evento__ejercicio_comercial=filtro_periodo)
+
+    # **CORRECCIÓN CLAVE:**
+    # Pasamos los grupos del usuario a la plantilla para que sepa qué botones mostrar.
+    context = {
+        'calificaciones': calificaciones,
+        'filtro_mercado': filtro_mercado,
+        'filtro_instrumento': filtro_instrumento,
+        'filtro_periodo': filtro_periodo,
+        'user_groups': request.user.groups.values_list('name', flat=True)
+    }
+    
+    return render(request, 'core/mantenedor.html', context)
+
+# Vista de Carga Masiva
+@login_required
+@group_required(['Corredor de Bolsa', 'Analista Tributario'])
 def upload_file_view(request):
     if request.method == 'POST':
         archivo = request.FILES.get('archivo_excel')
@@ -20,20 +51,16 @@ def upload_file_view(request):
         try:
             df = pd.read_excel(archivo, engine='openpyxl')
             df.columns = df.columns.str.strip()
-
-            # --- NUEVA VALIDACIÓN DE COLUMNAS ---
-            # Verificamos que las columnas obligatorias existan en el archivo
+            
             columnas_obligatorias = ['Instrumento', 'Numero de dividendo', 'Ejercicio', 'Fecha']
             for col in columnas_obligatorias:
                 if col not in df.columns:
                     raise ValueError(f"El archivo no tiene la columna obligatoria: '{col}'")
-            # --- FIN DE LA VALIDACIÓN ---
 
             registros_creados = 0
             with transaction.atomic():
                 for index, row in df.iterrows():
-                    # (El resto del código sigue igual que antes)
-                    # ...
+                    # (Lógica de procesamiento de cada fila...)
                     suma_factores_credito = 0
                     for i in range(8, 20):
                         col_name = f'Factor {i}'
@@ -90,38 +117,10 @@ def upload_file_view(request):
             messages.error(request, f"Error crítico procesando el archivo: {str(e)}")
             
     return render(request, 'core/upload.html')
-# core/views.py
 
+# Vista de Creación Manual
 @login_required
-def mantenedor_view(request):
-    # 1. Obtener todas las calificaciones como base
-    calificaciones = CalificacionTributaria.objects.select_related('evento__emisor').all()
-
-    # 2. Aplicar filtros si vienen en la URL (método GET)
-    filtro_mercado = request.GET.get('mercado', '')
-    filtro_instrumento = request.GET.get('instrumento', '')
-    filtro_periodo = request.GET.get('periodo', '')
-
-    if filtro_mercado:
-        calificaciones = calificaciones.filter(evento__mercado=filtro_mercado)
-    
-    if filtro_instrumento:
-        # Usamos __icontains para buscar texto que contenga el string (insensible a mayúsculas)
-        calificaciones = calificaciones.filter(evento__emisor__nemonico__icontains=filtro_instrumento)
-
-    if filtro_periodo:
-        calificaciones = calificaciones.filter(evento__ejercicio_comercial=filtro_periodo)
-
-    # 3. Pasar los datos filtrados y los valores de los filtros a la plantilla
-    context = {
-        'calificaciones': calificaciones,
-        'filtro_mercado': filtro_mercado,
-        'filtro_instrumento': filtro_instrumento,
-        'filtro_periodo': filtro_periodo,
-    }
-    
-    return render(request, 'core/mantenedor.html', context)
-@login_required
+@group_required(['Analista Tributario'])
 def create_calificacion_view(request):
     emisores = Emisor.objects.all().order_by('nemonico')
     conceptos = ConceptoFactor.objects.all()
@@ -129,7 +128,6 @@ def create_calificacion_view(request):
     if request.method == 'POST':
         try:
             with transaction.atomic():
-                # --- 1. Crear el Evento Corporativo ---
                 emisor_id = request.POST.get('emisor')
                 emisor = get_object_or_404(Emisor, pk=emisor_id)
                 
@@ -139,11 +137,10 @@ def create_calificacion_view(request):
                     fecha_pago=request.POST.get('fecha_pago'),
                     numero_dividendo=request.POST.get('numero_dividendo'),
                     ejercicio_comercial=request.POST.get('ejercicio_comercial'),
-                    secuencia=0, # Asignar un valor por defecto o lógica de negocio
+                    secuencia=0,
                     creado_por=request.user
                 )
 
-                # --- 2. Crear la Calificación Tributaria asociada ---
                 calificacion = CalificacionTributaria.objects.create(
                     evento=evento,
                     monto_unitario_pesos=request.POST.get('monto_unitario_pesos'),
@@ -151,7 +148,6 @@ def create_calificacion_view(request):
                     modificado_por=request.user
                 )
 
-                # --- 3. Guardar los Factores ---
                 for concepto in conceptos:
                     valor_factor = request.POST.get(f'factor_{concepto.pk}')
                     if valor_factor is not None and valor_factor != '':
@@ -161,7 +157,7 @@ def create_calificacion_view(request):
                             valor=valor_factor
                         )
                 
-            messages.success(request, f"Calificación para '{evento}' creada exitosamente.")
+            messages.success(request, f"Calificacion para '{evento}' creada exitosamente.")
             return redirect('core:mantenedor')
         except Exception as e:
             messages.error(request, f"Error al crear la calificación: {e}")
@@ -173,26 +169,9 @@ def create_calificacion_view(request):
     }
     return render(request, 'core/create_calificacion.html', context)
 
+# Vista de Edición
 @login_required
-def delete_calificacion_view(request, pk):
-    # Usamos get_object_or_404 para buscar la calificación.
-    # Si no la encuentra, automáticamente muestra una página de "No Encontrado" (Error 404).
-    calificacion = get_object_or_404(CalificacionTributaria, pk=pk)
-
-    # Solo permitimos la eliminación a través de una petición POST por seguridad.
-    # Esto evita que se pueda borrar algo accidentalmente solo visitando una URL.
-    if request.method == 'POST':
-        # Guardamos el nombre del evento para el mensaje antes de borrarlo
-        evento_info = str(calificacion.evento)
-        calificacion.delete()
-        messages.success(request, f"La calificación para '{evento_info}' fue eliminada correctamente.")
-    else:
-        # Si alguien intenta acceder por GET, no hacemos nada y solo lo mandamos al mantenedor.
-        messages.error(request, "Acción no permitida.")
-
-    return redirect('core:mantenedor')
-
-@login_required
+@group_required(['Analista Tributario'])
 def edit_calificacion_view(request, pk):
     calificacion = get_object_or_404(CalificacionTributaria, pk=pk)
     conceptos = ConceptoFactor.objects.all()
@@ -214,7 +193,6 @@ def edit_calificacion_view(request, pk):
                             defaults={'valor': valor_factor}
                         )
                     else:
-                        # Si el campo se envía vacío, borramos el factor existente
                         DetalleFactor.objects.filter(calificacion=calificacion, concepto=concepto).delete()
 
             messages.success(request, f"Calificación para '{calificacion.evento}' actualizada correctamente.")
@@ -227,13 +205,39 @@ def edit_calificacion_view(request, pk):
     for concepto in conceptos:
         factores_para_template.append({
             'concepto': concepto,
-            'valor': factores_existentes.get(concepto.pk, '')  # Usamos .get() para evitar errores si no existe
+            'valor': factores_existentes.get(concepto.pk, '')
         })
 
     context = {
         'calificacion': calificacion,
-        'factores_para_template': factores_para_template, # Pasamos la nueva lista al template
+        'factores_para_template': factores_para_template,
         'estado_choices': CalificacionTributaria.ESTADO_CHOICES,
     }
     
     return render(request, 'core/edit_calificacion.html', context)
+
+# Vista de Eliminación
+@login_required
+@group_required(['Analista Tributario'])
+def delete_calificacion_view(request, pk):
+    calificacion = get_object_or_404(CalificacionTributaria, pk=pk)
+    if request.method == 'POST':
+        evento_info = str(calificacion.evento)
+        calificacion.delete()
+        messages.success(request, f"La calificación para '{evento_info}' fue eliminada correctamente.")
+    else:
+        messages.error(request, "Acción no permitida.")
+    return redirect('core:mantenedor')
+
+# Vista de Historial (Auditoría)
+@login_required
+@group_required(['Auditor Interno', 'Analista Tributario'])
+def history_calificacion_view(request, pk):
+    calificacion = get_object_or_404(CalificacionTributaria, pk=pk)
+    historical_records = calificacion.history.select_related('history_user').all()
+
+    context = {
+        'calificacion': calificacion,
+        'historical_records': historical_records,
+    }
+    return render(request, 'core/history_calificacion.html', context)

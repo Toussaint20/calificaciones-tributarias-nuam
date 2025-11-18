@@ -28,31 +28,18 @@
     <div class="actions">
         <h1>Mantenedor de Calificaciones</h1>
         <div style="display: flex; gap: 10px;">
-            <a href="{% url 'core:create_calificacion' %}" class="btn btn-primary">Ingreso Manual</a>
-            <a href="{% url 'core:upload_file' %}" class="btn btn-secondary">Carga Masiva</a>
+            {% if request.user.is_superuser or 'Analista Tributario' in user_groups %}
+                <a href="{% url 'core:create_calificacion' %}" class="btn btn-primary">Ingreso Manual</a>
+            {% endif %}
+
+            {% if request.user.is_superuser or 'Corredor de Bolsa' in user_groups or 'Analista Tributario' in user_groups %}
+                <a href="{% url 'core:upload_file' %}" class="btn btn-secondary">Carga Masiva</a>
+            {% endif %}
         </div>
     </div>
 
     <form method="get" action="{% url 'core:mantenedor' %}" class="filters">
-        <div>
-            <label for="mercado">Mercado</label>
-            <select name="mercado" id="mercado">
-                <option value="">Todos</option>
-                <option value="ACN" {% if filtro_mercado == 'ACN' %}selected{% endif %}>Acciones</option>
-                <option value="CFI" {% if filtro_mercado == 'CFI' %}selected{% endif %}>Fondos de Inversión</option>
-                <option value="CFM" {% if filtro_mercado == 'CFM' %}selected{% endif %}>Fondos Mutuos</option>
-            </select>
-        </div>
-        <div>
-            <label for="instrumento">Instrumento</label>
-            <input type="text" name="instrumento" id="instrumento" value="{{ filtro_instrumento }}">
-        </div>
-        <div>
-            <label for="periodo">Periodo (Año)</label>
-            <input type="number" name="periodo" id="periodo" value="{{ filtro_periodo }}">
-        </div>
-        <button type="submit" class="btn btn-secondary">Filtrar</button>
-    </form>
+        </form>
 
     <table>
         <thead>
@@ -74,14 +61,19 @@
                 <td>{{ cal.evento.fecha_pago }}</td>
                 <td>{{ cal.evento.ejercicio_comercial }}</td>
                 <td>{{ cal.monto_unitario_pesos }}</td>
-                <td>{{ cal.get_estado_display }}</td>                
+                <td>{{ cal.get_estado_display }}</td>
                 <td style="display: flex; gap: 5px;">
-                    <a href="{% url 'core:edit_calificacion' cal.pk %}" class="btn btn-secondary">Editar</a>
-                    <form action="{% url 'core:delete_calificacion' cal.pk %}" method="post" onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta calificación?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-danger">Eliminar</button>
-                    </form>
+                    {% if request.user.is_superuser or 'Analista Tributario' in user_groups %}
+                        <a href="{% url 'core:edit_calificacion' cal.pk %}" class="btn btn-secondary">Editar</a>
+                        <form action="{% url 'core:delete_calificacion' cal.pk %}" method="post" onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta calificación?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger">Eliminar</button>
+                        </form>
+                    {% else %}
+                        <span>Sin acciones</span>
+                    {% endif %}
                 </td>
+            </tr>
             {% empty %}
             <tr>
                 <td colspan="7" style="text-align: center;">No se encontraron calificaciones.</td>
