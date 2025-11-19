@@ -1,44 +1,48 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Carga Masiva de Calificaciones</title>
-    <style>
-        body { font-family: sans-serif; margin: 40px; background-color: #f4f4f9; }
-        .container { max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        input[type="file"] { margin-bottom: 15px; }
-        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+{% extends 'core/base.html' %}
+
+{% block title %}Carga Masiva{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center pt-4">
+    <div class="col-md-8 col-lg-6">
         
-        /* --- ESTILOS PARA LOS MENSAJES --- */
-        .messages { list-style: none; padding: 0; margin-bottom: 20px; }
-        .messages li { padding: 15px; margin-bottom: 10px; border-radius: 4px; }
-        .messages .success { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
-        .messages .error { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; }
-    </style>
-</head>
-<body>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="text-secondary mb-0">Carga Masiva</h4>
+            <a href="{% url 'core:mantenedor' %}" class="btn btn-outline-secondary btn-sm">Volver al Mantenedor</a>
+        </div>
 
-    <div class="container">
-        <h2>Carga Masiva de Calificaciones Tributarias (Excel)</h2>
-
-        {% if messages %}
-            <ul class="messages">
-                {% for message in messages %}
-                    <li class="{{ message.tags }}">{{ message }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-        <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-
-            <p>Selecciona el archivo Excel (.xlsx) a procesar:</p>
-            <input type="file" name="archivo_excel" accept=".xlsx" required>
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="m-0 fw-bold text-primary"><i class="bi bi-cloud-upload-fill"></i> Importar Archivo Excel</h6>
+            </div>
             
-            <hr>
+            <div class="card-body p-4">
+                <div class="alert alert-light border mb-4">
+                    <h6 class="alert-heading fw-bold small"><i class="bi bi-info-circle"></i> Instrucciones:</h6>
+                    <ul class="mb-0 small text-muted ps-3">
+                        <li>El archivo debe tener extensión <strong>.xlsx</strong>.</li>
+                        <li>Debe contener las columnas: <em>Instrumento, Fecha, Ejercicio, Numero de dividendo</em>.</li>
+                        <li>La suma de los factores 8 al 19 no debe exceder 1.</li>
+                    </ul>
+                </div>
 
-            <button type="submit">Procesar Archivo</button>
-        </form>
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <div class="mb-4">
+                        <label for="archivo_excel" class="form-label small fw-bold text-secondary">Seleccione Archivo</label>
+                        <input type="file" name="archivo_excel" id="archivo_excel" class="form-control" accept=".xlsx" required>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            Procesar Carga
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
-
-</body>
-</html>
+</div>
+{% endblock %}

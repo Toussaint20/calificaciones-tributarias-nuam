@@ -1,87 +1,192 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Mantenedor de Calificaciones</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
-        .container { max-width: 1200px; margin: auto; background-color: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h1 { color: #333; }
-        .filters { display: flex; gap: 15px; margin-bottom: 20px; padding: 20px; background-color: #f1f1f1; border-radius: 8px; align-items: flex-end; }
-        .filters div { display: flex; flex-direction: column; }
-        .filters label { margin-bottom: 5px; font-weight: bold; font-size: 14px; }
-        .filters input, .filters select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
-        .actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .btn { padding: 10px 15px; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 14px; }
-        .btn-primary { background-color: #007bff; }
-        .btn-secondary { background-color: #6c757d; }
-        .btn-danger { background-color: #dc3545; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #e9ecef; }
-        tr:nth-child(even) { background-color: #f8f8f8; }
-    </style>
-</head>
-<body>
+{% extends 'core/base.html' %}
 
-<div class="container">
-    <div class="actions">
-        <h1>Mantenedor de Calificaciones</h1>
-        <div style="display: flex; gap: 10px;">
-            {% if request.user.is_superuser or 'Analista Tributario' in user_groups %}
-                <a href="{% url 'core:create_calificacion' %}" class="btn btn-primary">Ingreso Manual</a>
-            {% endif %}
+{% block content %}
+<style>
+    /* Contenedor que permite el scroll */
+    .table-scroll-container {
+        overflow-x: auto;
+        max-width: 100%;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        background: white;
+    }
+    
+    .table-scrollable {
+        margin-bottom: 0;
+        white-space: nowrap; /* Evita que el texto se rompa en líneas */
+        border-collapse: separate; /* Necesario para sticky headers */
+        border-spacing: 0;
+    }
 
-            {% if request.user.is_superuser or 'Corredor de Bolsa' in user_groups or 'Analista Tributario' in user_groups %}
-                <a href="{% url 'core:upload_file' %}" class="btn btn-secondary">Carga Masiva</a>
-            {% endif %}
-        </div>
+    /* Celdas comunes */
+    .table-scrollable th, .table-scrollable td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #dee2e6;
+        border-right: 1px solid #f0f0f0;
+        font-size: 0.85rem;
+    }
+
+    /* --- COLUMNAS FIJAS (STICKY) --- */
+    
+    /* Columna 1: Instrumento (Fija a la izquierda) */
+    .col-sticky-left {
+        position: sticky;
+        left: 0;
+        background-color: #fff; /* Fondo opaco para tapar lo que pasa por debajo */
+        z-index: 2;
+        border-right: 2px solid #dee2e6 !important; /* Borde más fuerte para separar */
+    }
+    /* Header de la columna fija */
+    th.col-sticky-left {
+        background-color: #f8f9fa;
+        z-index: 3; /* Mayor z-index para estar sobre las celdas */
+    }
+
+    /* Columna Última: Acciones (Fija a la derecha) */
+    .col-sticky-right {
+        position: sticky;
+        right: 0;
+        background-color: #fff;
+        z-index: 2;
+        border-left: 2px solid #dee2e6 !important;
+    }
+    th.col-sticky-right {
+        background-color: #f8f9fa;
+        z-index: 3;
+    }
+
+    /* Hover en filas: Asegurar que el color se vea en las columnas fijas también */
+    .table-scrollable tbody tr:hover td {
+        background-color: #f1f3f5;
+    }
+    .table-scrollable tbody tr:hover .col-sticky-left,
+    .table-scrollable tbody tr:hover .col-sticky-right {
+        background-color: #f1f3f5;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="text-secondary">Mantenedor de Calificaciones</h3>
+    <div>
+        {% if request.user.is_superuser or 'Analista Tributario' in user_groups %}
+            <a href="{% url 'core:create_calificacion' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Nuevo Ingreso
+            </a>
+        {% endif %}
+        {% if request.user.is_superuser or 'Corredor de Bolsa' in user_groups or 'Analista Tributario' in user_groups %}
+            <a href="{% url 'core:upload_file' %}" class="btn btn-success ms-2">
+                <i class="bi bi-file-earmark-excel"></i> Carga Masiva
+            </a>
+        {% endif %}
     </div>
+</div>
 
-    <form method="get" action="{% url 'core:mantenedor' %}" class="filters">
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body py-3">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Mercado</label>
+                <select name="mercado" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="ACN" {% if filtro_mercado == 'ACN' %}selected{% endif %}>Acciones</option>
+                    <option value="CFI" {% if filtro_mercado == 'CFI' %}selected{% endif %}>Fondos Inv.</option>
+                    <option value="CFM" {% if filtro_mercado == 'CFM' %}selected{% endif %}>Fondos Mutuos</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Instrumento</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" name="instrumento" class="form-control" value="{{ filtro_instrumento }}" placeholder="Ej: SQM-B">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Periodo</label>
+                <input type="number" name="periodo" class="form-control" value="{{ filtro_periodo }}" placeholder="2024">
+            </div>
+            <div class="col-md-3">
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-secondary">Aplicar Filtros</button>
+                </div>
+            </div>
         </form>
+    </div>
+</div>
 
-    <table>
+<div class="table-scroll-container">
+    <table class="table-scrollable">
         <thead>
             <tr>
+                <th class="col-sticky-left text-primary">Instrumento</th>
+                
                 <th>Mercado</th>
-                <th>Instrumento</th>
                 <th>Fecha Pago</th>
                 <th>Periodo</th>
-                <th>Monto por Acción</th>
-                <th>Estado</th>
-                <th>Acciones</th>
+                <th class="text-end">Monto ($)</th>
+                <th class="text-center">Estado</th>
+                
+                {% for col in columnas_indices %}
+                    <th class="text-center text-secondary" title="Factor Columna {{ col }}">
+                        Col {{ col }}
+                    </th>
+                {% endfor %}
+                
+                <th class="col-sticky-right text-center">Acciones</th>
             </tr>
         </thead>
         <tbody>
-            {% for cal in calificaciones %}
+            {% for row in tabla_completa %}
             <tr>
-                <td>{{ cal.evento.get_mercado_display }}</td>
-                <td>{{ cal.evento.emisor.nemonico }}</td>
-                <td>{{ cal.evento.fecha_pago }}</td>
-                <td>{{ cal.evento.ejercicio_comercial }}</td>
-                <td>{{ cal.monto_unitario_pesos }}</td>
-                <td>{{ cal.get_estado_display }}</td>
-                <td style="display: flex; gap: 5px;">
-                    {% if request.user.is_superuser or 'Analista Tributario' in user_groups %}
-                        <a href="{% url 'core:edit_calificacion' cal.pk %}" class="btn btn-secondary">Editar</a>
-                        <form action="{% url 'core:delete_calificacion' cal.pk %}" method="post" onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta calificación?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger">Eliminar</button>
-                        </form>
+                <td class="col-sticky-left fw-bold text-dark">{{ row.obj.evento.emisor.nemonico }}</td>
+                
+                <td>{{ row.obj.evento.mercado }}</td>
+                <td>{{ row.obj.evento.fecha_pago|date:"d/m/y" }}</td>
+                <td>{{ row.obj.evento.ejercicio_comercial }}</td>
+                <td class="text-end font-monospace">{{ row.obj.monto_unitario_pesos|floatformat:4 }}</td>
+                <td class="text-center">
+                    {% if row.obj.estado == 'VALIDADO' %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success">OK</span>
+                    {% elif row.obj.estado == 'BORRADOR' %}
+                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning">BOR</span>
                     {% else %}
-                        <span>Sin acciones</span>
+                        {{ row.obj.get_estado_display|slice:":3" }}
+                    {% endif %}
+                </td>
+
+                {% for valor in row.factores %}
+                    <td class="text-end text-muted font-monospace small">
+                        {% if valor > 0 %}
+                            {{ valor|floatformat:4 }}
+                        {% else %}
+                            <span class="text-light">-</span> {% endif %}
+                    </td>
+                {% endfor %}
+
+                <td class="col-sticky-right bg-white">
+                    {% if request.user.is_superuser or 'Analista Tributario' in user_groups %}
+                        <div class="d-flex justify-content-center gap-2">
+                            <a href="{% url 'core:edit_calificacion' row.obj.pk %}" class="text-primary" title="Editar">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            <form action="{% url 'core:delete_calificacion' row.obj.pk %}" method="post" class="d-inline" onsubmit="return confirm('¿Eliminar?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-link p-0 text-danger" title="Eliminar">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
                     {% endif %}
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7" style="text-align: center;">No se encontraron calificaciones.</td>
+                <td colspan="38" class="text-center py-5 text-muted">
+                    No se encontraron datos.
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
-
-</body>
-</html>
+{% endblock %}
