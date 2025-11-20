@@ -128,7 +128,7 @@
                 
                 {% for col in columnas_indices %}
                     <th class="text-center text-secondary" title="Factor Columna {{ col }}">
-                        Col {{ col }}
+                        Factor {{ col }}
                     </th>
                 {% endfor %}
                 
@@ -155,11 +155,8 @@
                 </td>
 
                 {% for valor in row.factores %}
-                    <td class="text-end text-muted font-monospace small">
-                        {% if valor > 0 %}
-                            {{ valor|floatformat:4 }}
-                        {% else %}
-                            <span class="text-light">-</span> {% endif %}
+                    <td class="text-end text-secondary font-monospace small">
+                        {{ valor|floatformat:4 }}
                     </td>
                 {% endfor %}
 

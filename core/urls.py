@@ -6,7 +6,7 @@ from . import views
 app_name = 'core'
 
 urlpatterns = [
-    # Ruta para la página principal del mantenedor (será la raíz del sitio)
+    # Ruta para la página principal del mantenedor
     path('', views.mantenedor_view, name='mantenedor'),
 
     #ruta para crear calificacion

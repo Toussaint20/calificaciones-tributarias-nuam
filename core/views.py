@@ -66,63 +66,53 @@ def upload_file_view(request):
             return redirect('core:upload_file')
 
         try:
-            # Leemos el Excel
             df = pd.read_excel(archivo, engine='openpyxl')
-            df.columns = df.columns.str.strip() # Quitamos espacios en los nombres de columnas
+            df.columns = df.columns.str.strip()
 
-            # 1. Validación Estructural: Columnas Obligatorias
             columnas_obligatorias = ['Instrumento', 'Numero de dividendo', 'Ejercicio', 'Fecha']
             for col in columnas_obligatorias:
                 if col not in df.columns:
                     raise ValueError(f"El archivo no tiene la columna obligatoria: '{col}'")
 
+            registros_procesados = 0
             registros_creados = 0
             
-            # Usamos atomic para que si falla una fila, no se guarde nada del archivo
             with transaction.atomic():
                 for index, row in df.iterrows():
-                    fila_excel = index + 2 # Para indicar al usuario (Excel empieza en fila 1 + cabecera)
+                    fila_excel = index + 2
 
-                    # --- A. Validaciones de Reglas de Negocio ---
-                    
-                    # Regla 1: Suma de factores 8-19 <= 1
+                    # ... (A. Validaciones de Negocio) ...
                     suma_factores_credito = 0
                     for i in range(8, 20):
                         col_name = f'Factor {i}'
                         if col_name in df.columns:
-                            valor = pd.to_numeric(row.get(col_name), errors='coerce') or 0
-                            # Regla 2: No permitir negativos en factores
-                            if valor < 0:
-                                raise ValueError(f"Fila {fila_excel}: El '{col_name}' no puede ser negativo ({valor}).")
+                            valor = pd.to_numeric(row.get(col_name), errors='coerce')
+                            if pd.isna(valor): valor = 0.0
+                            if valor < 0: raise ValueError(f"Fila {fila_excel}: El '{col_name}' no puede ser negativo.")
                             suma_factores_credito += valor
                     
-                    # Margen de tolerancia pequeño por decimales flotantes
                     if suma_factores_credito > 1.000001:
-                        raise ValueError(f"Fila {fila_excel}: La suma de factores de crédito (col 8-19) es {suma_factores_credito:.4f}, excede el límite de 1.")
+                        raise ValueError(f"Fila {fila_excel}: La suma de factores (factores 8-19) excede 1.")
 
-                    # Regla 3: Monto unitario no negativo
-                    monto_unitario = pd.to_numeric(row.get('Monto Unitario', 0), errors='coerce') or 0
-                    if monto_unitario < 0:
-                         raise ValueError(f"Fila {fila_excel}: El Monto Unitario no puede ser negativo.")
+                    monto_unitario = pd.to_numeric(row.get('Monto Unitario', 0), errors='coerce')
+                    if pd.isna(monto_unitario): monto_unitario = 0
+                    if monto_unitario < 0: raise ValueError(f"Fila {fila_excel}: El Monto Unitario no puede ser negativo.")
 
-                    # --- B. Procesamiento de Entidades ---
-
-                    # Normalizamos Tipo Sociedad
+                    # ... (B. Guardar Entidades) ...
                     tipo_soc_raw = str(row.get('Tipo sociedad', 'A')).upper()
                     tipo_soc = 'C' if 'CERRADA' in tipo_soc_raw or 'C' == tipo_soc_raw else 'A'
                     
-                    # Crear/Obtener Emisor
                     emisor, _ = Emisor.objects.get_or_create(
                         nemonico=row['Instrumento'],
                         defaults={
-                            'rut': row.get('RUT', f"SIN-RUT-{index}"), # Placeholder si no viene RUT
+                            'rut': row.get('RUT', f"SIN-RUT-{index}"),
                             'razon_social': row['Instrumento'],
                             'tipo_sociedad': tipo_soc
                         }
                     )
 
-                    # Crear/Obtener Evento
-                    evento, created = EventoCorporativo.objects.get_or_create(
+                    # 1. Buscamos o creamos el Evento
+                    evento, evento_created = EventoCorporativo.objects.get_or_create(
                         emisor=emisor,
                         numero_dividendo=row['Numero de dividendo'],
                         ejercicio_comercial=row['Ejercicio'],
@@ -134,56 +124,53 @@ def upload_file_view(request):
                         }
                     )
 
-                    # Crear/Actualizar Calificación
-                    calificacion, _ = CalificacionTributaria.objects.update_or_create(
+                    # 2. Buscamos o creamos la Calificación 
+                    calificacion, calif_created = CalificacionTributaria.objects.update_or_create(
                         evento=evento,
                         defaults={
                             'monto_unitario_pesos': monto_unitario,
-                            'estado': 'BORRADOR', # Siempre entran como borrador para revisión
+                            'estado': 'BORRADOR',
                             'modificado_por': request.user
                         }
                     )
 
-                    # --- C. Guardar Factores (Dinámico) ---
+                    # ... (C. Guardar Factores) ...
                     for col_name in df.columns:
-                        # Detectamos columnas que se llamen "Factor X"
                         if str(col_name).strip().startswith('Factor '):
                             try:
                                 num_col = int(col_name.split(' ')[1])
                                 valor = pd.to_numeric(row[col_name], errors='coerce')
-                                
-                                # Solo guardamos si es un número válido y no es 0 (opcional, para ahorrar espacio)
-                                # Nota: Si quieres guardar 0 explícitamente, quita "and valor != 0"
-                                if pd.notna(valor):
-                                    if valor < 0:
-                                         raise ValueError(f"Fila {fila_excel}: El Factor {num_col} es negativo.")
-                                    
-                                    # Buscamos el concepto oficial en la BD (cargado por el seed)
-                                    try:
-                                        concepto = ConceptoFactor.objects.get(columna_dj=num_col)
-                                        
-                                        DetalleFactor.objects.update_or_create(
-                                            calificacion=calificacion,
-                                            concepto=concepto,
-                                            defaults={'valor': valor}
-                                        )
-                                    except ConceptoFactor.DoesNotExist:
-                                        # Si el Excel trae "Factor 99" y no existe en la ley, lo ignoramos
-                                        # o lanzamos error si queremos ser estrictos.
-                                        continue 
+                                if pd.isna(valor): valor = 0.0
 
+                                if valor < 0: raise ValueError(f"Fila {fila_excel}: El Factor {num_col} es negativo.")
+                                
+                                try:
+                                    concepto = ConceptoFactor.objects.get(columna_dj=num_col)
+                                    DetalleFactor.objects.update_or_create(
+                                        calificacion=calificacion,
+                                        concepto=concepto,
+                                        defaults={'valor': valor}
+                                    )
+                                except ConceptoFactor.DoesNotExist:
+                                    continue 
                             except (ValueError, IndexError):
                                 continue
                     
-                    if created:
+                    # --- CORRECCIÓN DEL CONTADOR ---
+                    registros_procesados += 1
+                    
+                    # Si se creó el evento O si se creó la calificación (porque se había borrado), cuenta como nuevo.
+                    if evento_created or calif_created:
                         registros_creados += 1
 
-            messages.success(request, f"Carga exitosa: Se procesaron correctamente. Se crearon {registros_creados} eventos nuevos.")
+            if registros_creados > 0:
+                messages.success(request, f"Carga exitosa: Se procesaron {registros_procesados} registros ({registros_creados} nuevos/recuperados).")
+            else:
+                messages.info(request, f"Carga completada: Se procesaron {registros_procesados} registros (Todos ya existían y fueron actualizados).")
             
         except ValueError as e:
             messages.error(request, f"Error de validación: {str(e)}")
         except Exception as e:
-            # Capturamos errores inesperados de Pandas o BD
             messages.error(request, f"Error crítico procesando el archivo: {str(e)}")
             
     return render(request, 'core/upload.html')
