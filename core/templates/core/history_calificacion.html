@@ -1,65 +1,59 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Historial de Cambios</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
-        .container { max-width: 1000px; margin: auto; background-color: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; }
-        .btn-secondary { background-color: #6c757d; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #e9ecef; }
-        .change-type-C { background-color: #d4edda; } /* Verde para Creación */
-        .change-type-U { background-color: #fff3cd; } /* Amarillo para Actualización */
-        .change-type-D { background-color: #f8d7da; } /* Rojo para Eliminación */
-    </style>
-</head>
-<body>
+{% extends 'core/base.html' %}
 
-<div class="container">
-    <h1>Historial de Cambios</h1>
-    <h2>Calificación para: {{ calificacion.evento }}</h2>
+{% block title %}Historial de Cambios - NUAM{% endblock %}
 
-    <table>
-        <thead>
-            <tr>
-                <th>Fecha y Hora</th>
-                <th>Usuario</th>
-                <th>Tipo de Cambio</th>
-                <th>Monto por Acción</th>
-                <th>Estado</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for record in historical_records %}
-                <tr class="change-type-{{ record.get_history_type_display }}">
-                    <td>{{ record.history_date }}</td>
-                    <td>{{ record.history_user.username|default:"Sistema" }}</td>
-                    <td>
-                        {% if record.history_type == '+' %}
-                            Creación
-                        {% elif record.history_type == '~' %}
-                            Actualización
-                        {% else %}
-                            Eliminación
-                        {% endif %}
-                    </td>
-                    <td>{{ record.monto_unitario_pesos }}</td>
-                    <td>{{ record.get_estado_display }}</td>
-                </tr>
-            {% empty %}
-                <tr>
-                    <td colspan="5" style="text-align: center;">No hay historial de cambios para este registro.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <br>
-    <a href="{% url 'core:edit_calificacion' calificacion.pk %}" class="btn-secondary">Volver a Editar</a>
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'core:edit_calificacion' calificacion.pk %}" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="bi bi-arrow-left"></i> Volver a Edición
+    </a>
+    <h2><i class="bi bi-clock-history"></i> Historial de Cambios</h2>
+    <h5 class="text-muted">Evento: {{ calificacion.evento }}</h5>
 </div>
 
-</body>
-</html>
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Usuario</th>
+                        <th>Acción</th>
+                        <th>Monto ($)</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in historical_records %}
+                        <tr>
+                            <td>{{ record.history_date|date:"d/m/Y H:i:s" }}</td>
+                            <td>
+                                <span class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-person-circle text-secondary"></i>
+                                    {{ record.history_user.username|default:"Sistema" }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if record.history_type == '+' %}
+                                    <span class="badge bg-success">Creación</span>
+                                {% elif record.history_type == '~' %}
+                                    <span class="badge bg-warning text-dark">Edición</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Eliminación</span>
+                                {% endif %}
+                            </td>
+                            <td class="font-monospace">{{ record.monto_unitario_pesos }}</td>
+                            <td>{{ record.get_estado_display }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-3">No hay registros históricos disponibles.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
