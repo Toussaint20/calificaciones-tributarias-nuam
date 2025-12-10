@@ -39,6 +39,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django_filters',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'drf_spectacular',
     #app nuam
     'core',
     #apps terceros
@@ -134,3 +137,23 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_REDIRECT_URL = '/'  # Al loguearse, va al mantenedor
 LOGOUT_REDIRECT_URL = '/accounts/login/' # Al salir, vuelve al login
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',  # <--- Para scripts/API
+        'rest_framework.authentication.SessionAuthentication',  # <--- Para navegador/Swagger
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'API NUAM Tributario',
+    'DESCRIPTION': 'Documentación de la API para gestión de eventos corporativos y calificaciones.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
