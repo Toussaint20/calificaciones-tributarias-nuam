@@ -3,12 +3,15 @@
 import pandas as pd
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.db import transaction
-from .models import Emisor, EventoCorporativo, CalificacionTributaria, ConceptoFactor, DetalleFactor
+from .models import Emisor, EventoCorporativo, CalificacionTributaria, ConceptoFactor, DetalleFactor, AuditLog
 from .decorators import group_required
 from .forms import EventoForm, CalificacionForm
-from .filters import AuditoriaFilter
+from django_filters.views import FilterView
+from .filters import AuditLogFilter
+from django.utils.decorators import method_decorator
 
 # Vista Principal: Mantenedor
 
@@ -378,20 +381,18 @@ def history_calificacion_view(request, pk):
     }
     return render(request, 'core/history_calificacion.html', context)
 
-# core/views.py
-
-@login_required
-@group_required(['Auditor Interno', 'Administrador']) # Solo auditores
-def auditoria_global_view(request):
-    # Obtenemos TODOS los registros históricos de calificaciones
-    # .select_related para optimizar queries
-    historial_qs = CalificacionTributaria.history.select_related('history_user', 'evento__emisor').all().order_by('-history_date')
+# log de auditoria
+@method_decorator(group_required(['Auditor Interno', 'Administrador']), name='dispatch')
+class AuditLogListView(LoginRequiredMixin, FilterView):
+    model = AuditLog
+    template_name = 'core/audit_log_list.html'
+    context_object_name = 'logs'
+    paginate_by = 20
+    ordering = ['-timestamp']
     
-    # Aplicamos el filtro
-    filtro = AuditoriaFilter(request.GET, queryset=historial_qs)
-    
-    # Paginación
-    # Por ahora mostramos los últimos 100 filtrados para no saturar
-    registros = filtro.qs[:100]
+    # Conectamos el filtro a la vista
+    filterset_class = AuditLogFilter
 
-    return render(request, 'core/auditoria_global.html', {'filter': filtro, 'registros': registros})
+    def get_queryset(self):
+        # Mantenemos la optimización de base de datos
+        return super().get_queryset().select_related('user', 'content_type')

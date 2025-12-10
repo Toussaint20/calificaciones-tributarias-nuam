@@ -1,16 +1,37 @@
-# core/filters.py
+# /app/core/filters.py
 import django_filters
-from .models import CalificacionTributaria
+from django import forms
+from .models import AuditLog
 
-class AuditoriaFilter(django_filters.FilterSet):
-    # Filtro por rango de fechas
-    start_date = django_filters.DateFilter(field_name='history_date', lookup_expr='gte', label='Desde')
-    end_date = django_filters.DateFilter(field_name='history_date', lookup_expr='lte', label='Hasta')
-    # Filtro por usuario (texto parcial)
-    usuario = django_filters.CharFilter(field_name='history_user__username', lookup_expr='icontains', label='Usuario')
-    # Filtro por instrumento
-    instrumento = django_filters.CharFilter(field_name='evento__emisor__nemonico', lookup_expr='icontains', label='Instrumento')
+class AuditLogFilter(django_filters.FilterSet):
+    # Definimos las opciones manualmente aquí para evitar el error de atributo
+    ACTION_CHOICES = [
+        ('CREATE', 'Creación'),
+        ('UPDATE', 'Edición'),
+        ('DELETE', 'Eliminación'),
+    ]
+
+    username = django_filters.CharFilter(
+        field_name='user__username', 
+        lookup_expr='icontains', 
+        label='Usuario'
+    )
+    
+    action = django_filters.ChoiceFilter(choices=ACTION_CHOICES, label='Acción')
+
+    start_date = django_filters.DateFilter(
+        field_name='timestamp', 
+        lookup_expr='gte', 
+        label='Fecha Desde',
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+    end_date = django_filters.DateFilter(
+        field_name='timestamp', 
+        lookup_expr='lte', 
+        label='Fecha Hasta',
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
 
     class Meta:
-        model = CalificacionTributaria.history.model # Modelo histórico
-        fields = ['history_type'] # Filtro extra por tipo (Creación/Edición/Borrado)
+        model = AuditLog
+        fields = ['username', 'action', 'start_date', 'end_date']

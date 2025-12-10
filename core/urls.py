@@ -2,6 +2,7 @@
 
 from django.urls import path
 from . import views
+from .views import AuditLogListView
 
 app_name = 'core'
 
@@ -20,5 +21,4 @@ urlpatterns = [
     #ruta para historial
     path('calificacion/<int:pk>/history/', views.history_calificacion_view, name='history_calificacion'),
     #ruta para auditoría global
-    path('auditoria/', views.auditoria_global_view, name='auditoria_global'),
-]
+    path('historial/', AuditLogListView.as_view(), name='audit_log_list'),]

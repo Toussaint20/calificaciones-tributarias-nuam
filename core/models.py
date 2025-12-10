@@ -1,8 +1,11 @@
 # core/models.py
 
 from django.db import models
+from django.conf import settings
 from django.contrib.auth.models import User
 from simple_history.models import HistoricalRecords
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey
 
 # --- TABLAS MAESTRAS (Catálogos) ---
 
@@ -95,3 +98,45 @@ class DetalleFactor(models.Model):
 
     class Meta:
         unique_together = ('calificacion', 'concepto')
+        
+
+class AuditLog(models.Model):
+    ACTION_TYPES = (
+        ('CREATE', 'Creación'),
+        ('UPDATE', 'Actualización'),
+        ('DELETE', 'Eliminación'),
+        ('LOGIN', 'Inicio de Sesión'),
+    )
+
+    # Quién
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='audit_logs'
+    )
+    
+    # Cuándo y Qué pasó
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True) # Indexado para filtrar rápido por fecha
+    action = models.CharField(max_length=20, choices=ACTION_TYPES)
+    
+    # Sobre qué objeto (Polimorfismo: permite guardar logs de cualquier modelo: Factores, Usuarios, etc.)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True, blank=True)
+    object_id = models.CharField(max_length=255, null=True, blank=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+    
+    # Detalles técnicos (IP opcional, pero recomendada en tributaria)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    
+    # El núcleo: Antes y Después usando JSON de Postgres
+    changes = models.JSONField(default=dict, blank=True) 
+    # Ejemplo de estructura: {"monto": {"old": 100, "new": 150}}
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Registro de Auditoría'
+        verbose_name_plural = 'Registros de Auditoría'
+
+    def __str__(self):
+        return f"{self.timestamp} - {self.user} - {self.action}"

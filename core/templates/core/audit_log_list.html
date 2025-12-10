@@ -1,0 +1,132 @@
+{% extends 'core/base.html' %} 
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Historial de Cambios</h2>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <i class="fas fa-filter"></i> Filtros de Búsqueda
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                
+                <div class="col-md-3">
+                    <label class="form-label">Usuario</label>
+                    <input type="text" name="username" class="form-control" placeholder="Ej: admin" value="{{ request.GET.username }}">
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Acción</label>
+                    <select name="action" class="form-select">
+                        <option value="">Todas</option>
+                        <option value="CREATE" {% if request.GET.action == 'CREATE' %}selected{% endif %}>Creación</option>
+                        <option value="UPDATE" {% if request.GET.action == 'UPDATE' %}selected{% endif %}>Edición</option>
+                        <option value="DELETE" {% if request.GET.action == 'DELETE' %}selected{% endif %}>Eliminación</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Desde</label>
+                    {{ filter.form.start_date }} 
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Hasta</label>
+                    {{ filter.form.end_date }}
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100 me-2">Filtrar</button>
+                    <a href="{% url 'core:audit_log_list' %}" class="btn btn-secondary" title="Limpiar"><i class="fa fa-times"></i></a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Fecha/Hora</th>
+                    <th>Usuario</th>
+                    <th>Acción</th>
+                    <th>Objeto</th>
+                    <th>Detalles (Cambios)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.timestamp|date:"d/m/Y H:i" }}</td>
+                    
+                    <td>
+                        {% if log.user %}
+                            {{ log.user.username }}
+                        {% else %}
+                            <span class="text-muted">Sistema / Desconocido</span>
+                        {% endif %}
+                    </td>
+                    
+                    <td>
+                        {% if log.action == 'CREATE' %}
+                            <span class="badge bg-success">Creación</span>
+                        {% elif log.action == 'UPDATE' %}
+                            <span class="badge bg-warning text-dark">Edición</span>
+                        {% elif log.action == 'DELETE' %}
+                            <span class="badge bg-danger">Eliminación</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        <strong>{{ log.content_type.model|title }}</strong><br>
+                        <small class="text-muted">ID: {{ log.object_id }}</small>
+                    </td>
+
+                    <td>
+                        {% if log.changes %}
+                            <ul class="list-unstyled mb-0" style="font-size: 0.9em;">
+                            {% for field, values in log.changes.items %}
+                                <li>
+                                    <strong>{{ field }}:</strong> 
+                                    <span class="text-danger">{{ values.old }}</span> 
+                                    &rarr; 
+                                    <span class="text-success">{{ values.new }}</span>
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        {% else %}
+                            <span class="text-muted">- Sin cambios registrados -</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center">No hay registros de auditoría aún.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav>
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">Anterior</a>
+                </li>
+            {% endif %}
+            
+            <li class="page-item disabled">
+                <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">Siguiente</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %} </div>
+{% endblock %}
