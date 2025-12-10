@@ -29,21 +29,19 @@ class ConceptoFactor(models.Model):
         ordering = ['columna_dj']
 
 # --- TABLAS TRANSACCIONALES ---
-
+#Entidad transaccional vinculada por FK
 class EventoCorporativo(models.Model):
     MERCADO_CHOICES = [
         ('ACN', 'Acciones'),
         ('CFI', 'Cuotas Fondos de Inversión'),
         ('CFM', 'Cuotas Fondos Mutuos'),
     ]
-
     emisor = models.ForeignKey(Emisor, on_delete=models.PROTECT, db_index=True)
     mercado = models.CharField(max_length=3, choices=MERCADO_CHOICES, default='ACN')
     
     fecha_pago = models.DateField(db_index=True)
     fecha_registro = models.DateField(null=True, blank=True)
     
-    # === CAMPOS CORREGIDOS ===
     numero_dividendo = models.PositiveIntegerField(help_text="N° del evento según el emisor", default=0)
     secuencia = models.PositiveIntegerField(help_text="Identificador único de secuencia del archivo", default=0)
     ejercicio_comercial = models.PositiveIntegerField(help_text="Año comercial (Ej: 2023)", default=2024) # Default al año actual es razonable
@@ -58,8 +56,8 @@ class EventoCorporativo(models.Model):
     def __str__(self):
         return f"{self.emisor} - Div #{self.numero_dividendo} ({self.ejercicio_comercial})"
 
+#Cabecera de la calificación (1:1 con Evento)
 class CalificacionTributaria(models.Model):
-    # --- CAMBIO IMPORTANTE AQUÍ ---
     # 1. Definimos las opciones como un atributo de la clase.
     ESTADO_CHOICES = [
         ('BORRADOR', 'Borrador'),
@@ -88,11 +86,11 @@ class CalificacionTributaria(models.Model):
     def __str__(self):
         return f"Calificación {self.evento}"
 
+#Cumple 1FN: Elimina grupos repetidos (factores 8-37)
 class DetalleFactor(models.Model):
     calificacion = models.ForeignKey(CalificacionTributaria, on_delete=models.CASCADE, related_name='detalles')
     concepto = models.ForeignKey(ConceptoFactor, on_delete=models.PROTECT)
     
-    # === CAMPO CORREGIDO ===
     valor = models.DecimalField(max_digits=10, decimal_places=8, default=0)
 
     class Meta:

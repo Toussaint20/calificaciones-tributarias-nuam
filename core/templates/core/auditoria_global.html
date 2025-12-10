@@ -1,0 +1,81 @@
+{% extends 'core/base.html' %}
+{% load widget_tweaks %} {% block title %}Auditoría del Sistema{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="text-secondary"><i class="bi bi-shield-lock"></i> Log de Auditoría Global</h4>
+    <span class="badge bg-info text-dark">Mostrando últimos resultados</span>
+</div>
+
+<div class="card mb-4 border-0 shadow-sm bg-light">
+    <div class="card-body py-3">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="small fw-bold">Desde</label>
+                <input type="date" name="start_date" class="form-control form-control-sm" value="{{ request.GET.start_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="small fw-bold">Hasta</label>
+                <input type="date" name="end_date" class="form-control form-control-sm" value="{{ request.GET.end_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="small fw-bold">Usuario</label>
+                <input type="text" name="usuario" class="form-control form-control-sm" placeholder="Nombre usuario..." value="{{ request.GET.usuario }}">
+            </div>
+            <div class="col-md-3">
+                <label class="small fw-bold">Instrumento</label>
+                <input type="text" name="instrumento" class="form-control form-control-sm" placeholder="Ej: COPEC..." value="{{ request.GET.instrumento }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-dark btn-sm w-100"><i class="bi bi-filter"></i> Filtrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0 align-middle" style="font-size: 0.85rem;">
+            <thead class="table-dark">
+                <tr>
+                    <th>Fecha/Hora</th>
+                    <th>Usuario</th>
+                    <th>Acción</th>
+                    <th>Instrumento</th>
+                    <th>Detalle Cambio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in registros %}
+                <tr>
+                    <td>{{ log.history_date|date:"d/m/Y H:i:s" }}</td>
+                    <td>
+                        <span class="fw-bold text-primary">{{ log.history_user.username|default:"Sistema" }}</span>
+                    </td>
+                    <td>
+                        {% if log.history_type == '+' %}<span class="badge bg-success">Creación</span>
+                        {% elif log.history_type == '~' %}<span class="badge bg-warning text-dark">Modificación</span>
+                        {% else %}<span class="badge bg-danger">Eliminación</span>{% endif %}
+                    </td>
+                    <td>{{ log.evento.emisor.nemonico }} ({{ log.evento.ejercicio_comercial }})</td>
+                    <td>
+                        {% if log.prev_record %}
+                            {% if log.prev_record.monto_unitario_pesos != log.monto_unitario_pesos %}
+                                <div>Monto: <span class="text-danger">{{ log.prev_record.monto_unitario_pesos }}</span> &rarr; <span class="text-success">{{ log.monto_unitario_pesos }}</span></div>
+                            {% endif %}
+                            {% if log.prev_record.estado != log.estado %}
+                                <div>Estado: {{ log.prev_record.get_estado_display }} &rarr; {{ log.get_estado_display }}</div>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">Registro Inicial</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center py-4">No se encontraron registros.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

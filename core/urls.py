@@ -19,4 +19,6 @@ urlpatterns = [
     path('calificacion/<int:pk>/edit/', views.edit_calificacion_view, name='edit_calificacion'),
     #ruta para historial
     path('calificacion/<int:pk>/history/', views.history_calificacion_view, name='history_calificacion'),
+    #ruta para auditoría global
+    path('auditoria/', views.auditoria_global_view, name='auditoria_global'),
 ]

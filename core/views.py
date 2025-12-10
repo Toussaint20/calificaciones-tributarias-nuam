@@ -8,6 +8,7 @@ from django.db import transaction
 from .models import Emisor, EventoCorporativo, CalificacionTributaria, ConceptoFactor, DetalleFactor
 from .decorators import group_required
 from .forms import EventoForm, CalificacionForm
+from .filters import AuditoriaFilter
 
 # Vista Principal: Mantenedor
 
@@ -69,109 +70,114 @@ def upload_file_view(request):
             df = pd.read_excel(archivo, engine='openpyxl')
             df.columns = df.columns.str.strip()
 
+            # Validación de columnas
             columnas_obligatorias = ['Instrumento', 'Numero de dividendo', 'Ejercicio', 'Fecha']
-            for col in columnas_obligatorias:
-                if col not in df.columns:
-                    raise ValueError(f"El archivo no tiene la columna obligatoria: '{col}'")
+            missing = [col for col in columnas_obligatorias if col not in df.columns]
+            if missing:
+                messages.error(request, f"Faltan columnas obligatorias: {', '.join(missing)}")
+                return redirect('core:upload_file')
 
-            registros_procesados = 0
             registros_creados = 0
-            
+            registros_procesados = 0
+            errores_acumulados = [] # <--- LISTA PARA GUARDAR TODOS LOS ERRORES
+
+            # Usamos atomic para que si hay errores, no se guarde NADA del archivo
             with transaction.atomic():
                 for index, row in df.iterrows():
                     fila_excel = index + 2
+                    errores_fila = []
 
-                    # ... (A. Validaciones de Negocio) ...
-                    suma_factores_credito = 0
+                    # --- A. Validaciones de Negocio ---
+                    suma_factores = 0
                     for i in range(8, 20):
                         col_name = f'Factor {i}'
                         if col_name in df.columns:
-                            valor = pd.to_numeric(row.get(col_name), errors='coerce')
-                            if pd.isna(valor): valor = 0.0
-                            if valor < 0: raise ValueError(f"Fila {fila_excel}: El '{col_name}' no puede ser negativo.")
-                            suma_factores_credito += valor
+                            val = pd.to_numeric(row.get(col_name), errors='coerce')
+                            if pd.isna(val): val = 0.0
+                            if val < 0: 
+                                errores_fila.append(f"Factor {i} es negativo")
+                            suma_factores += val
                     
-                    if suma_factores_credito > 1.000001:
-                        raise ValueError(f"Fila {fila_excel}: La suma de factores (factores 8-19) excede 1.")
+                    if suma_factores > 1.000001:
+                        errores_fila.append(f"Suma factores 8-19 excede 1 ({suma_factores:.4f})")
 
-                    monto_unitario = pd.to_numeric(row.get('Monto Unitario', 0), errors='coerce')
-                    if pd.isna(monto_unitario): monto_unitario = 0
-                    if monto_unitario < 0: raise ValueError(f"Fila {fila_excel}: El Monto Unitario no puede ser negativo.")
+                    monto = pd.to_numeric(row.get('Monto Unitario', 0), errors='coerce')
+                    if pd.isna(monto): monto = 0
+                    if monto < 0: 
+                        errores_fila.append("Monto negativo")
 
-                    # ... (B. Guardar Entidades) ...
-                    tipo_soc_raw = str(row.get('Tipo sociedad', 'A')).upper()
-                    tipo_soc = 'C' if 'CERRADA' in tipo_soc_raw or 'C' == tipo_soc_raw else 'A'
-                    
-                    emisor, _ = Emisor.objects.get_or_create(
-                        nemonico=row['Instrumento'],
-                        defaults={
-                            'rut': row.get('RUT', f"SIN-RUT-{index}"),
-                            'razon_social': row['Instrumento'],
-                            'tipo_sociedad': tipo_soc
-                        }
-                    )
+                    # Si la fila tiene errores, los guardamos y pasamos a la siguiente
+                    if errores_fila:
+                        errores_acumulados.append(f"Fila {fila_excel}: {', '.join(errores_fila)}")
+                        continue 
 
-                    # 1. Buscamos o creamos el Evento
-                    evento, evento_created = EventoCorporativo.objects.get_or_create(
-                        emisor=emisor,
-                        numero_dividendo=row['Numero de dividendo'],
-                        ejercicio_comercial=row['Ejercicio'],
-                        defaults={
-                            'mercado': row.get('Mercado', 'ACN'),
-                            'fecha_pago': row['Fecha'],
-                            'secuencia': row.get('Secuencia', 0),
-                            'creado_por': request.user
-                        }
-                    )
+                    # --- B. Procesamiento (Solo si no hay errores en la fila) ---
+                    try:
+                        tipo_soc = 'C' if 'CERRADA' in str(row.get('Tipo sociedad', 'A')).upper() else 'A'
+                        
+                        emisor, _ = Emisor.objects.get_or_create(
+                            nemonico=row['Instrumento'],
+                            defaults={'rut': row.get('RUT', f"SIN-RUT-{index}"), 'razon_social': row['Instrumento'], 'tipo_sociedad': tipo_soc}
+                        )
 
-                    # 2. Buscamos o creamos la Calificación 
-                    calificacion, calif_created = CalificacionTributaria.objects.update_or_create(
-                        evento=evento,
-                        defaults={
-                            'monto_unitario_pesos': monto_unitario,
-                            'estado': 'BORRADOR',
-                            'modificado_por': request.user
-                        }
-                    )
+                        evento, ev_created = EventoCorporativo.objects.get_or_create(
+                            emisor=emisor,
+                            numero_dividendo=row['Numero de dividendo'],
+                            ejercicio_comercial=row['Ejercicio'],
+                            defaults={'mercado': row.get('Mercado', 'ACN'), 'fecha_pago': row['Fecha'], 'secuencia': row.get('Secuencia', 0), 'creado_por': request.user}
+                        )
 
-                    # ... (C. Guardar Factores) ...
-                    for col_name in df.columns:
-                        if str(col_name).strip().startswith('Factor '):
-                            try:
-                                num_col = int(col_name.split(' ')[1])
-                                valor = pd.to_numeric(row[col_name], errors='coerce')
-                                if pd.isna(valor): valor = 0.0
+                        calif, cal_created = CalificacionTributaria.objects.update_or_create(
+                            evento=evento,
+                            defaults={'monto_unitario_pesos': monto, 'estado': 'BORRADOR', 'modificado_por': request.user}
+                        )
 
-                                if valor < 0: raise ValueError(f"Fila {fila_excel}: El Factor {num_col} es negativo.")
-                                
+                        # Factores
+                        for col in df.columns:
+                            if col.startswith('Factor '):
                                 try:
-                                    concepto = ConceptoFactor.objects.get(columna_dj=num_col)
-                                    DetalleFactor.objects.update_or_create(
-                                        calificacion=calificacion,
-                                        concepto=concepto,
-                                        defaults={'valor': valor}
-                                    )
-                                except ConceptoFactor.DoesNotExist:
-                                    continue 
-                            except (ValueError, IndexError):
-                                continue
-                    
-                    # --- CORRECCIÓN DEL CONTADOR ---
-                    registros_procesados += 1
-                    
-                    # Si se creó el evento O si se creó la calificación (porque se había borrado), cuenta como nuevo.
-                    if evento_created or calif_created:
-                        registros_creados += 1
+                                    num = int(col.split(' ')[1])
+                                    val = pd.to_numeric(row[col], errors='coerce') or 0.0
+                                    if val < 0: continue # Ya validado arriba
+                                    
+                                    # Optimización: Solo guardamos si el concepto existe
+                                    if ConceptoFactor.objects.filter(columna_dj=num).exists():
+                                        DetalleFactor.objects.update_or_create(
+                                            calificacion=calif,
+                                            concepto_id=ConceptoFactor.objects.get(columna_dj=num).id,
+                                            defaults={'valor': val}
+                                        )
+                                except: continue
 
-            if registros_creados > 0:
-                messages.success(request, f"Carga exitosa: Se procesaron {registros_procesados} registros ({registros_creados} nuevos/recuperados).")
-            else:
-                messages.info(request, f"Carga completada: Se procesaron {registros_procesados} registros (Todos ya existían y fueron actualizados).")
-            
-        except ValueError as e:
-            messages.error(request, f"Error de validación: {str(e)}")
+                        registros_procesados += 1
+                        if ev_created or cal_created: registros_creados += 1
+
+                    except Exception as e:
+                        errores_acumulados.append(f"Fila {fila_excel}: Error técnico ({str(e)})")
+
+                # --- DECISIÓN FINAL ---
+                if errores_acumulados:
+                    # Si hubo errores, cancelamos TODO (Rollback)
+                    transaction.set_rollback(True)
+                    
+                    # Preparamos mensaje HTML limpio
+                    msg = "<strong>La carga falló por los siguientes errores:</strong><br><ul class='mb-0'>"
+                    # Mostramos solo los primeros 10 errores para no saturar la pantalla
+                    for err in errores_acumulados[:10]:
+                        msg += f"<li>{err}</li>"
+                    if len(errores_acumulados) > 10:
+                        msg += f"<li>... y {len(errores_acumulados)-10} errores más.</li>"
+                    msg += "</ul>"
+                    
+                    messages.error(request, msg, extra_tags='safe') # 'safe' permite renderizar HTML
+                else:
+                    if registros_creados > 0:
+                        messages.success(request, f"Carga exitosa: {registros_procesados} registros procesados ({registros_creados} nuevos).")
+                    else:
+                        messages.info(request, f"Carga completa: {registros_procesados} registros actualizados.")
+
         except Exception as e:
-            messages.error(request, f"Error crítico procesando el archivo: {str(e)}")
+            messages.error(request, f"Error crítico: {str(e)}")
             
     return render(request, 'core/upload.html')
 
@@ -371,3 +377,21 @@ def history_calificacion_view(request, pk):
         'historical_records': historical_records,
     }
     return render(request, 'core/history_calificacion.html', context)
+
+# core/views.py
+
+@login_required
+@group_required(['Auditor Interno', 'Administrador']) # Solo auditores
+def auditoria_global_view(request):
+    # Obtenemos TODOS los registros históricos de calificaciones
+    # .select_related para optimizar queries
+    historial_qs = CalificacionTributaria.history.select_related('history_user', 'evento__emisor').all().order_by('-history_date')
+    
+    # Aplicamos el filtro
+    filtro = AuditoriaFilter(request.GET, queryset=historial_qs)
+    
+    # Paginación
+    # Por ahora mostramos los últimos 100 filtrados para no saturar
+    registros = filtro.qs[:100]
+
+    return render(request, 'core/auditoria_global.html', {'filter': filtro, 'registros': registros})

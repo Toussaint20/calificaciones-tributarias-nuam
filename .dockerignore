@@ -1,0 +1,27 @@
+Git
+
+.git
+.gitignore
+
+Entornos virtuales locales
+
+venv/
+env/
+
+Archivos de entorno local (Docker usa sus propias variables)
+
+.env
+
+Archivos compilados y cache
+
+pycache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.db
+*.sqlite3
+
+Archivos de sistema
+
+.DS_Store

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'core',
     #apps terceros
     'simple_history',
+    'django-filter',
 ]
 
 MIDDLEWARE = [
