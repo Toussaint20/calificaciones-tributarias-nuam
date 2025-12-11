@@ -6,7 +6,7 @@ from django.forms.models import model_to_dict
 from django.core.serializers.json import DjangoJSONEncoder
 from .models import AuditLog
 
-EXCLUDED_MODELS = ['AuditLog']
+EXCLUDED_MODELS = ['AuditLog', 'Session']
 
 @receiver(pre_save)
 def audit_log_pre_save(sender, instance, **kwargs):
@@ -31,6 +31,9 @@ def audit_log_post_save(sender, instance, created, **kwargs):
     
     user = get_current_user()
     
+    if user and not user.is_authenticated:
+        user = None
+        
     new_state = model_to_dict(instance)
     changes = {}
     action = 'CREATE' if created else 'UPDATE'
@@ -64,6 +67,10 @@ def audit_log_post_delete(sender, instance, **kwargs):
     from .middleware import get_current_user
 
     user = get_current_user()
+    
+    if user and not user.is_authenticated:
+        user = None
+        
     old_state = model_to_dict(instance)
     
     AuditLog.objects.create(

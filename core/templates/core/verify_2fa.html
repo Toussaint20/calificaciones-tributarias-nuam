@@ -1,0 +1,27 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white text-center">
+                <h4><i class="bi bi-shield-lock-fill"></i> Verificación de Seguridad</h4>
+            </div>
+            <div class="card-body text-center p-4">
+                <p class="mb-4">Tu cuenta está protegida. Por favor ingresa el código temporal de tu aplicación autenticadora.</p>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <input type="text" name="token" class="form-control form-control-lg text-center" 
+                               placeholder="000 000" maxlength="6" autofocus required autocomplete="off">
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">Verificar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

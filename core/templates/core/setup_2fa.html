@@ -1,0 +1,33 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Configurar Seguridad (2FA)</h5>
+            </div>
+            <div class="card-body text-center">
+                <p class="text-muted">Escanea este código con <strong>Google Authenticator</strong> o <strong>Authy</strong>.</p>
+                
+                <div class="mb-4">
+                    {{ qr_svg|safe }}
+                </div>
+
+                <hr>
+
+                <form method="post" class="mt-4">
+                    {% csrf_token %}
+                    <label class="form-label fw-bold">Ingresa el código de 6 dígitos:</label>
+                    <div class="d-flex justify-content-center">
+                        <input type="text" name="token" class="form-control form-control-lg text-center w-50" 
+                               placeholder="000 000" maxlength="6" autocomplete="off" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 mt-3">Verificar y Activar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

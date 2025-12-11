@@ -1,34 +1,33 @@
-# core/forms.py
-
 from django import forms
 from .models import EventoCorporativo, CalificacionTributaria
 
-class EventoForm(forms.ModelForm):
+class EstiloBootstrapMixin:
+    """Mixin para añadir clases de Bootstrap a todos los campos"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name, field in self.fields.items():
+            # Si es Checkbox usa form-check-input, si no, form-control
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs['class'] = 'form-check-input'
+            else:
+                field.widget.attrs['class'] = 'form-control'
+
+class EventoForm(EstiloBootstrapMixin, forms.ModelForm):
     class Meta:
         model = EventoCorporativo
-        fields = ['emisor', 'mercado', 'fecha_pago', 'numero_dividendo', 'ejercicio_comercial']
-        
-        # Personalizamos los widgets para que tengan estilos CSS y calendarios
+        fields = ['emisor', 'mercado', 'ejercicio_comercial', 'numero_dividendo', 'fecha_pago']
         widgets = {
-            'emisor': forms.Select(attrs={'class': 'form-control'}),
-            'mercado': forms.Select(attrs={'class': 'form-control'}),
-            'fecha_pago': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'numero_dividendo': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
-            'ejercicio_comercial': forms.NumberInput(attrs={'class': 'form-control', 'min': '2000'}),
+            'fecha_pago': forms.DateInput(attrs={'type': 'date'}),
+            'ejercicio_comercial': forms.NumberInput(attrs={'placeholder': 'Ej: 2025'}),
+        }
+        labels = {
+            'numero_dividendo': 'N° Dividendo',
         }
 
-class CalificacionForm(forms.ModelForm):
+class CalificacionForm(EstiloBootstrapMixin, forms.ModelForm):
     class Meta:
         model = CalificacionTributaria
-        fields = ['monto_unitario_pesos', 'estado']
-        widgets = {
-            'monto_unitario_pesos': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
-            'estado': forms.Select(attrs={'class': 'form-control'}),
+        fields = ['monto_unitario_pesos'] # Solo el monto, los factores los manejamos manual
+        labels = {
+            'monto_unitario_pesos': 'Monto Unitario ($)',
         }
-
-    # --- VALIDACIÓN PERSONALIZADA (Regla de Negocio) ---
-    def clean_monto_unitario_pesos(self):
-        monto = self.cleaned_data.get('monto_unitario_pesos')
-        if monto is not None and monto < 0:
-            raise forms.ValidationError("El monto por acción no puede ser negativo.")
-        return monto

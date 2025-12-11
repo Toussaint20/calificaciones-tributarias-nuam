@@ -42,10 +42,13 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'drf_spectacular',
+    'django_otp',
     #app nuam
     'core',
     #apps terceros
     'simple_history',
+    'django_otp.plugins.otp_totp', # Plugin para Google Authenticator
+
 ]
 
 MIDDLEWARE = [
@@ -54,8 +57,10 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django_otp.middleware.OTPMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.Force2FAMiddleware',
     'core.middleware.CurrentUserMiddleware',
 ]
 
@@ -157,3 +162,5 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
+
+OTP_TOTP_ISSUER = 'NUAM_Tributario'

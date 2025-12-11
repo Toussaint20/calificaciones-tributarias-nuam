@@ -32,6 +32,9 @@ urlpatterns = [
     path('calificacion/<int:pk>/history/', views.history_calificacion_view, name='history_calificacion'),
     #ruta para auditoría global
     path('historial/', AuditLogListView.as_view(), name='audit_log_list'),
+    #rutas para verificacion 2fa
+    path('seguridad/2fa/', views.setup_2fa_view, name='setup_2fa'),
+    path('seguridad/verificar/', views.verify_2fa_view, name='verify_2fa'), # <--- Nueva ruta
     # --- URLs DE LA API ---
     path('api/', include(router.urls)),
     path('api/login/', obtain_auth_token, name='api_token_auth'),

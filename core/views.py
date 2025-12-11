@@ -12,6 +12,10 @@ from .forms import EventoForm, CalificacionForm
 from django_filters.views import FilterView
 from .filters import AuditLogFilter
 from django.utils.decorators import method_decorator
+import qrcode
+import qrcode.image.svg
+from io import BytesIO
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 # Vista Principal: Mantenedor
 
@@ -396,3 +400,60 @@ class AuditLogListView(LoginRequiredMixin, FilterView):
     def get_queryset(self):
         # Mantenemos la optimización de base de datos
         return super().get_queryset().select_related('user', 'content_type')
+    
+#logueo 2fa qr
+@login_required
+def setup_2fa_view(request):
+    user = request.user
+    
+    # 1. Buscamos si ya tiene un dispositivo, si no, lo creamos (pero no confirmado aún)
+    device, created = TOTPDevice.objects.get_or_create(user=user, name='default')
+    
+    if request.method == 'POST':
+        # El usuario ingresa el código que ve en su celular para confirmar
+        token = request.POST.get('token')
+        if device.verify_token(token):
+            device.confirmed = True
+            device.save()
+            messages.success(request, "¡Autenticación de dos factores activada correctamente!")
+            return redirect('core:mantenedor')
+        else:
+            messages.error(request, "Código inválido. Inténtalo de nuevo.")
+
+    # 2. Generamos el código QR para mostrar en pantalla
+    otp_url = device.config_url
+    
+    # Creamos la imagen QR en memoria
+    # Usamos SvgPathImage que dibuja vectores más limpios y compatibles
+    img = qrcode.make(otp_url, image_factory=qrcode.image.svg.SvgPathImage)
+    stream = BytesIO()
+    img.save(stream)
+    qr_svg = stream.getvalue().decode()
+
+    context = {
+        'qr_svg': qr_svg,
+        'secret_key': device.key, 
+    }
+    return render(request, 'core/setup_2fa.html', context)
+
+@login_required
+def verify_2fa_view(request):
+    # Si el usuario ya pasó la seguridad, lo mandamos al inicio
+    if request.user.is_verified():
+        return redirect('core:mantenedor')
+
+    if request.method == 'POST':
+        token = request.POST.get('token')
+        # Buscamos el dispositivo del usuario
+        device = TOTPDevice.objects.filter(user=request.user, confirmed=True).first()
+        
+        if device and device.verify_token(token):
+            # Esta función marca al usuario como "verificado" en la sesión actual
+            from django_otp import login as otp_login
+            otp_login(request, device)
+            
+            return redirect('core:mantenedor')
+        else:
+            messages.error(request, "Código incorrecto. Intenta nuevamente.")
+
+    return render(request, 'core/verify_2fa.html')
