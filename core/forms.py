@@ -1,5 +1,5 @@
 from django import forms
-from .models import EventoCorporativo, CalificacionTributaria
+from .models import EventoCorporativo, CalificacionTributaria, Emisor
 
 class EstiloBootstrapMixin:
     """Mixin para añadir clases de Bootstrap a todos los campos"""
@@ -30,4 +30,19 @@ class CalificacionForm(EstiloBootstrapMixin, forms.ModelForm):
         fields = ['monto_unitario_pesos'] # Solo el monto, los factores los manejamos manual
         labels = {
             'monto_unitario_pesos': 'Monto Unitario ($)',
+        }
+        
+class EmisorForm(EstiloBootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Emisor
+        fields = ['nemonico', 'rut', 'razon_social', 'tipo_sociedad']
+        labels = {
+            'nemonico': 'Nemónico (Instrumento)',
+            'razon_social': 'Razón Social',
+            'rut': 'RUT',
+            'tipo_sociedad': 'Tipo de Sociedad',
+        }
+        widgets = {
+            'nemonico': forms.TextInput(attrs={'placeholder': 'Ej: COPEC'}),
+            'rut': forms.TextInput(attrs={'placeholder': 'Ej: 99.123.456-K'}),
         }

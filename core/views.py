@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.db import transaction
 from .models import Emisor, EventoCorporativo, CalificacionTributaria, ConceptoFactor, DetalleFactor, AuditLog
 from .decorators import group_required
-from .forms import EventoForm, CalificacionForm
+from .forms import EventoForm, CalificacionForm, EmisorForm
 from django_filters.views import FilterView
 from .filters import AuditLogFilter
 from django.utils.decorators import method_decorator
@@ -78,7 +78,7 @@ def upload_file_view(request):
             df.columns = df.columns.str.strip()
 
             # Validación de columnas
-            columnas_obligatorias = ['Instrumento', 'Numero de dividendo', 'Ejercicio', 'Fecha']
+            columnas_obligatorias = ['Instrumento', 'RUT', 'Numero de dividendo', 'Ejercicio', 'Fecha']
             missing = [col for col in columnas_obligatorias if col not in df.columns]
             if missing:
                 messages.error(request, f"Faltan columnas obligatorias: {', '.join(missing)}")
@@ -120,23 +120,30 @@ def upload_file_view(request):
 
                     # --- B. Procesamiento (Solo si no hay errores en la fila) ---
                     try:
+                        # 1. VALIDACIÓN DE RUT OBLIGATORIO
+                        rut_excel = str(row.get('RUT', '')).strip()
+                        
+                        # Si el RUT está vacío o es 'nan' (vacío de pandas), es un error
+                        if not rut_excel or rut_excel.lower() == 'nan':
+                            errores_fila.append("El campo RUT es obligatorio y no puede estar vacío.")
+                            # Guardamos el error y saltamos a la siguiente iteración
+                            # (Al final se hará rollback porque errores_fila no estará vacío)
+                            if errores_fila:
+                                errores_acumulados.append(f"Fila {fila_excel}: {', '.join(errores_fila)}")
+                                continue
+
+                        # 2. Creación del Emisor (Sin inventar datos)
                         tipo_soc = 'C' if 'CERRADA' in str(row.get('Tipo sociedad', 'A')).upper() else 'A'
                         
+                        # Intentamos obtener o crear. 
+                        # OJO: Ahora usamos el RUT real del Excel.
                         emisor, _ = Emisor.objects.get_or_create(
                             nemonico=row['Instrumento'],
-                            defaults={'rut': row.get('RUT', f"SIN-RUT-{index}"), 'razon_social': row['Instrumento'], 'tipo_sociedad': tipo_soc}
-                        )
-
-                        evento, ev_created = EventoCorporativo.objects.get_or_create(
-                            emisor=emisor,
-                            numero_dividendo=row['Numero de dividendo'],
-                            ejercicio_comercial=row['Ejercicio'],
-                            defaults={'mercado': row.get('Mercado', 'ACN'), 'fecha_pago': row['Fecha'], 'secuencia': row.get('Secuencia', 0), 'creado_por': request.user}
-                        )
-
-                        calif, cal_created = CalificacionTributaria.objects.update_or_create(
-                            evento=evento,
-                            defaults={'monto_unitario_pesos': monto, 'estado': 'BORRADOR', 'modificado_por': request.user}
+                            defaults={
+                                'rut': rut_excel,  # <--- Usamos el dato real validado
+                                'razon_social': row['Instrumento'], 
+                                'tipo_sociedad': tipo_soc
+                            }
                         )
 
                         # Factores
@@ -371,6 +378,26 @@ def delete_calificacion_view(request, pk):
     else:
         messages.error(request, "Acción no permitida.")
     return redirect('core:mantenedor')
+
+#vista de creación de instrumentos (emisor)
+@login_required
+@group_required(['Analista Tributario', 'Corredor de Bolsa'])
+def create_emisor_view(request):
+    if request.method == 'POST':
+        form = EmisorForm(request.POST)
+        if form.is_valid():
+            try:
+                emisor = form.save()
+                messages.success(request, f"Instrumento '{emisor.nemonico}' creado correctamente.")
+                return redirect('core:mantenedor')
+            except Exception as e:
+                messages.error(request, f"Error al guardar: {e}")
+        else:
+            messages.error(request, "Por favor corrige los errores en el formulario.")
+    else:
+        form = EmisorForm()
+
+    return render(request, 'core/create_emisor.html', {'form': form})
 
 # Vista de Historial (Auditoría)
 @login_required

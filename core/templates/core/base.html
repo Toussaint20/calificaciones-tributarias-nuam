@@ -51,7 +51,7 @@
             </button>
 
             <div class="collapse navbar-collapse" id="navbarNav">
-                {% if user.is_authenticated %}
+                {% if user.is_authenticated and request.path != '/accounts/login/' %} 
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'core:mantenedor' %}">
@@ -81,9 +81,6 @@
                             <i class="bi bi-box-arrow-right"></i>
                         </button>
                     </form>
-                    <a href="{% url 'core:setup_2fa' %}" class="btn btn-sm btn-outline-light me-2" title="Configurar 2FA">
-                        <i class="bi bi-shield-check"></i>
-                    </a>
                 </div>
                 {% endif %}
             </div>

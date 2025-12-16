@@ -1,0 +1,58 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-building-add"></i> Crear Nuevo Instrumento</h5>
+            </div>
+            <div class="card-body p-4">
+                
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">{{ form.nemonico.label }}</label>
+                            {{ form.nemonico }}
+                            {% if form.nemonico.errors %}
+                                <div class="text-danger small mt-1">{{ form.nemonico.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">{{ form.rut.label }}</label>
+                            {{ form.rut }}
+                            {% if form.rut.errors %}
+                                <div class="text-danger small mt-1">{{ form.rut.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">{{ form.razon_social.label }}</label>
+                            {{ form.razon_social }}
+                            {% if form.razon_social.errors %}
+                                <div class="text-danger small mt-1">{{ form.razon_social.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">{{ form.tipo_sociedad.label }}</label>
+                            {{ form.tipo_sociedad }}
+                            {% if form.tipo_sociedad.errors %}
+                                <div class="text-danger small mt-1">{{ form.tipo_sociedad.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mt-4 d-flex justify-content-end gap-2">
+                        <a href="{% url 'core:mantenedor' %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-success">Guardar Instrumento</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

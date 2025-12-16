@@ -74,6 +74,13 @@
                 <i class="bi bi-plus-lg"></i> Nuevo Ingreso
             </a>
         {% endif %}
+        
+        {% if request.user.is_superuser or 'Corredor de Bolsa' in user_groups or 'Analista Tributario' in user_groups %}
+            <a href="{% url 'core:create_emisor' %}" class="btn btn-outline-success ms-2">
+                <i class="bi bi-building"></i> Nuevo Instrumento
+            </a>
+        {% endif %}
+        
         {% if request.user.is_superuser or 'Corredor de Bolsa' in user_groups or 'Analista Tributario' in user_groups %}
             <a href="{% url 'core:upload_file' %}" class="btn btn-success ms-2">
                 <i class="bi bi-file-earmark-excel"></i> Carga Masiva
@@ -120,7 +127,7 @@
             <tr>
                 <th class="col-sticky-left text-primary">Instrumento</th>
                 
-                <th>Mercado</th>
+                <th>RUT</th> <th>Mercado</th>
                 <th>Fecha Pago</th>
                 <th>Periodo</th>
                 <th class="text-end">Monto ($)</th>
@@ -140,7 +147,7 @@
             <tr>
                 <td class="col-sticky-left fw-bold text-dark">{{ row.obj.evento.emisor.nemonico }}</td>
                 
-                <td>{{ row.obj.evento.mercado }}</td>
+                <td class="text-nowrap">{{ row.obj.evento.emisor.rut }}</td> <td>{{ row.obj.evento.mercado }}</td>
                 <td>{{ row.obj.evento.fecha_pago|date:"d/m/y" }}</td>
                 <td>{{ row.obj.evento.ejercicio_comercial }}</td>
                 <td class="text-end font-monospace">{{ row.obj.monto_unitario_pesos|floatformat:4 }}</td>
@@ -178,8 +185,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="38" class="text-center py-5 text-muted">
-                    No se encontraron datos.
+                <td colspan="39" class="text-center py-5 text-muted"> No se encontraron datos.
                 </td>
             </tr>
             {% endfor %}

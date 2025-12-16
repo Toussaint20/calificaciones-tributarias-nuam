@@ -7,6 +7,8 @@ from .views import AuditLogListView
 from . import api_views
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.authtoken.views import obtain_auth_token
+from django.contrib.auth import views as auth_views
+from django.views.decorators.cache import never_cache
 
 # Configuración del Router de la API
 router = DefaultRouter()
@@ -17,9 +19,10 @@ router.register(r'calificaciones', api_views.CalificacionViewSet)
 app_name = 'core'
 
 urlpatterns = [
+    #ruta para login
+    path('accounts/login/', never_cache(auth_views.LoginView.as_view(redirect_authenticated_user=True)), name='login'),
     # Ruta para la página principal del mantenedor
     path('', views.mantenedor_view, name='mantenedor'),
-
     #ruta para crear calificacion
     path('calificacion/new/', views.create_calificacion_view, name='create_calificacion'),
     # Ruta para la carga de archivos
@@ -28,6 +31,8 @@ urlpatterns = [
     path('calificacion/<int:pk>/delete/', views.delete_calificacion_view, name='delete_calificacion'),
     #ruta para editar
     path('calificacion/<int:pk>/edit/', views.edit_calificacion_view, name='edit_calificacion'),
+    #ruta para crear Instrumentos (Emisores)
+    path('instrumento/new/', views.create_emisor_view, name='create_emisor'),
     #ruta para historial
     path('calificacion/<int:pk>/history/', views.history_calificacion_view, name='history_calificacion'),
     #ruta para auditoría global

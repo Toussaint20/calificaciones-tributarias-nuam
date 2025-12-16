@@ -2,6 +2,7 @@ import threading
 from django.shortcuts import redirect
 from django.urls import reverse
 from django_otp.plugins.otp_totp.models import TOTPDevice
+from django.utils.cache import add_never_cache_headers
 
 # ==========================================
 # 1. LÓGICA DE AUDITORÍA 
@@ -44,6 +45,9 @@ class Force2FAMiddleware:
 
         # Lógica del Portero:
         if request.user.is_authenticated:
+            #para evitar que un usuario acceda al login mientras esté logueado
+            if request.path == '/accounts/login/' and request.user.is_verified():
+                return redirect('core:mantenedor')
             # Si el usuario NO está verificado con 2FA...
             if not request.user.is_verified():
                 
@@ -62,4 +66,17 @@ class Force2FAMiddleware:
                         return redirect('core:setup_2fa')
 
         response = self.get_response(request)
+        return response
+    
+class NoCacheMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        
+        # No aplicamos esto a archivos estáticos (CSS/JS/Imágenes) para no afectar rendimiento
+        if not request.path.startswith('/static/'):
+            add_never_cache_headers(response)
+        
         return response

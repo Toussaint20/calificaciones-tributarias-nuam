@@ -22,6 +22,7 @@ Ejecute el siguiente comando para descargar dependencias e iniciar el servidor: 
 Este proceso puede tardar unos minutos la primera vez mientras descarga las imágenes.
 
 3. Aplicar migraciones y crear superusuario
+# si desea utilizar la base de datos pre-existente salte al paso 5.
 Prepare la base de datos y cree su cuenta de administrador:
 
 Crear las tablas en la base de datos
@@ -38,6 +39,11 @@ docker-compose exec web python manage.py create_groups
 
 Cargar catálogo de factores y conceptos tributarios
 docker-compose exec web python manage.py seed_factores
+
+5.Carga de Datos de Ejemplo (Opcional) 
+Si desea visualizar el sistema con los datos de prueba de la demostración (usuarios, registros de auditoría, carga masiva previa), ejecute el siguiente comando tras levantar el sistema:
+
+cat respaldo_nuam.sql | docker-compose exec -T db psql -U postgres -d calificaciones_db
 
 Acceso al Sistema
 Una vez desplegado, puede acceder a los distintos módulos en su navegador:
